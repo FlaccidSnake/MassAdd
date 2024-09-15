@@ -1,3 +1,5 @@
+
+
 from aqt import mw, deckchooser, notetypechooser
 from anki.models import NotetypeId
 from anki.notes import Note
@@ -27,12 +29,12 @@ class MassAddWindow(QDialog):
         self.text_edit = QTextEdit(mw)
         self.submit_button = QPushButton(mw)
         self.deck_chooser = deckchooser.DeckChooser(mw, self.deck_widget)
-        defaults = mw.col.defaults_for_adding(
-                       current_review_card=mw.reviewer.card
+        defaults = mw.col.defaults_for_adding(current_review_card=mw.reviewer.card)
+        self.model_chooser = notetypechooser.NotetypeChooser(
+            mw=mw,
+            widget=self.model_widget,
+            starting_notetype_id=NotetypeId(defaults.notetype_id),
         )
-        self.model_chooser = notetypechooser.NotetypeChooser(mw=mw, widget=self.model_widget,
-                                                             starting_notetype_id=NotetypeId(defaults.notetype_id))
-
 
         self.processor_widget = QWidget(mw)
         self.processor_layout = QHBoxLayout(mw)
@@ -92,11 +94,11 @@ class MassAddWindow(QDialog):
             note.model()["did"] = deck_id
             mw.col.addNote(note)
 
-        showInfo('Done')
+        showInfo("Done")
 
 
 MAWindow = MassAddWindow()
 
 action = QAction("MassAdd", mw)
 action.triggered.connect(MAWindow.show_window)
-mw.form.menuTools.addAction(action)
+mw.form.menubar.addAction(action)
