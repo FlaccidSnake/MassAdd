@@ -1,4 +1,4 @@
-# MassAdd
+# MassAdd, updated for Qt6 (Anki version 25.02)
 
 An Anki add on for mass-adding cards from a block of text. Primarily intended for use as part
 of 'sentence mining' when learning a foreign language.
