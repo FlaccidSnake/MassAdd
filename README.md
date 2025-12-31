@@ -10,6 +10,7 @@ An Anki add on for mass-adding cards from a block of text.
    field of the selected card type will be used to add the text.
  - Copy and paste the text into the window.
  - Each new line of text will be a seperate card. To make this easier you can
-   use the 'Add' button to seperate the text into new lines based on a specific
+   use the 'Split now' button to seperate the text into new lines based on a specific
    character, for example you may want to use a full-stop (.) or a comma(,).
+   - To split your text within each note into separate fields, use tabs (indents); fields will be propagated in order.
  - Click 'submit' and the cards will be created.
