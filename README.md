@@ -1,4 +1,4 @@
-# MassAdd
+# 🗒 MassAdd
 
 An Anki add on for mass-adding cards from a block of text.
 
