@@ -1,1 +1,7 @@
-{"package" : "MassAdd", "name" : "MassAdd"}
+{
+    "package": "mass_add",
+    "name": "MassAdd - Create multiple cards from raw text",
+    "conflicts": [],
+    "mod": 0,
+    "homepage": ""
+}
