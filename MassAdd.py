@@ -106,11 +106,11 @@ class MassAddWindow(QDialog):
 
         self.processor_widget = QWidget(self)
         self.processor_layout = QHBoxLayout()
-        self.processor_label = QLabel("Character to split on:")
+        self.processor_label = QLabel("Insert line breaks after:")
         self.processor_text = QLineEdit(self)
         self.processor_text.setMaxLength(1)
         self.processor_text.setFixedWidth(60)
-        self.processor_button = QPushButton("Split", self)
+        self.processor_button = QPushButton("Split now", self)
 
         self.processor_button.clicked.connect(self.split_text)
 
@@ -120,7 +120,7 @@ class MassAddWindow(QDialog):
         self.processor_widget.setLayout(self.processor_layout)
 
         # Add informational label
-        info_label = QLabel("<b>New notes are divided by line breaks. Use the tool below to add linebreaks on a character (e.g. full stops at the end of sentences) if you don't  have any line breaks.</b>")
+        info_label = QLabel("<b>New notes are divided by line breaks; use tabs to separate fields within each note.")
         info_label.setWordWrap(True)
 
         self.submit_button.setText("Add")
@@ -149,7 +149,7 @@ class MassAddWindow(QDialog):
         split_marker = self.processor_text.text()
 
         if not split_marker:
-            showInfo("Please enter a character to split on.")
+            showInfo("Insert line breaks after:")
             return
 
         new_text = (split_marker + "\n").join(text.split(split_marker))
@@ -159,28 +159,57 @@ class MassAddWindow(QDialog):
     def add_current_sentences(self):
         deck_id = self.deck_chooser.selectedId()
         model_id = self.model_chooser.selected_notetype_id
+        
+        if not model_id:
+            showInfo("Please select a note type.")
+            return
+        
         m = mw.col.models.get(model_id)
+        
+        if not m or not m["flds"]:
+            showInfo("Selected note type has no fields.")
+            return
 
-        field = m["flds"][0]["name"]
+        # Get the list of field names for the selected note type
+        field_names = [fld["name"] for fld in m["flds"]]
 
-        sentences = self.text_edit.toPlainText().split("\n")
+        # Split the input text into lines (each line is a note)
+        lines = self.text_edit.toPlainText().split("\n")
         
         # Filter out empty lines
-        sentences = [s.strip() for s in sentences if s.strip()]
+        lines = [line.strip() for line in lines if line.strip()]
 
-        if not sentences:
+        if not lines:
             showInfo("No content to add.")
             return
 
-        # Add notes
+        # Add notes with progress indicator
+        mw.progress.start(label="Adding notes...", max=len(lines))
         count = 0
-        for s in sentences:
+        
+        for idx, line in enumerate(lines):
+            # Split the line into values based on tabs
+            values = line.split("\t")
+            
             note = Note(mw.col, m)
-            note[field] = s
+            
+            # Assign values to fields
+            for i, field_name in enumerate(field_names):
+                if i < len(values):
+                    # Assign the corresponding value to the field
+                    note[field_name] = values[i].strip()
+                else:
+                    # If there are more fields than values, assign an empty string
+                    note[field_name] = ""
+            
             note.note_type()["did"] = deck_id
             mw.col.addNote(note)
             count += 1
+            mw.progress.update(value=idx + 1)
 
+        mw.progress.finish()
+        mw.reset()
+        
         showInfo(f"Added {count} note(s).")
         self.text_edit.setText("")
 
