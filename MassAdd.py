@@ -22,6 +22,43 @@ def gc(key, default=None):
     return conf.get(key, default)
 
 
+class MockEditor:
+    """Mock editor to satisfy Quick Access addon requirements"""
+    def __init__(self, parent):
+        self.parent = parent
+        self.mw = mw
+        self.note = None
+        self.addMode = True
+        self.web = MockWeb(parent)  # Mock web object for focus operations
+    
+    def call_after_note_saved(self, callback):
+        """Execute callback immediately since we don't have a real note to save"""
+        callback()
+    
+    def loadNote(self, focusTo=None):
+        """Mock method - does nothing in MassAdd"""
+        pass
+    
+    def _save_current_note(self):
+        """Mock method - does nothing in MassAdd"""
+        pass
+
+
+class MockWeb:
+    """Mock web object for editor"""
+    def __init__(self, parent):
+        self.parent = parent
+    
+    def setFocus(self):
+        """Set focus to the text edit area"""
+        if hasattr(self.parent, 'text_edit') and self.parent.text_edit:
+            self.parent.text_edit.setFocus()
+    
+    def eval(self, js_code):
+        """Mock eval method - does nothing"""
+        pass
+
+
 class MassAddWindow(QDialog):
     def __init__(self) -> None:
         super().__init__(None)
@@ -39,6 +76,8 @@ class MassAddWindow(QDialog):
         self.deck_chooser = None
         self.model_chooser = None
         self.notetype_chooser = None  # Alias for compatibility
+        self.editor = None  # Will be initialized in setup_ui
+        self.mw = mw  # Reference to main window
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -46,6 +85,9 @@ class MassAddWindow(QDialog):
         self.model_widget = QWidget(self)
         self.text_edit = QTextEdit(self)
         self.submit_button = QPushButton(self)
+
+        # Create mock editor for Quick Access addon compatibility
+        self.editor = MockEditor(self)
 
         self.deck_chooser = deckchooser.DeckChooser(mw, self.deck_widget)
         # Add reference back to this window for Quick Access compatibility
@@ -77,11 +119,16 @@ class MassAddWindow(QDialog):
         self.processor_layout.addWidget(self.processor_button)
         self.processor_widget.setLayout(self.processor_layout)
 
+        # Add informational label
+        info_label = QLabel("<b>New notes are divided by line breaks. Use the tool below to add linebreaks on a character (e.g. full stops at the end of sentences) if you don't  have any line breaks.</b>")
+        info_label.setWordWrap(True)
+
         self.submit_button.setText("Add")
         self.submit_button.clicked.connect(self.add_current_sentences)
 
         layout.addWidget(self.model_widget)
         layout.addWidget(self.deck_widget)
+        layout.addWidget(info_label)
         layout.addWidget(self.processor_widget)
         layout.addWidget(self.text_edit)
         layout.addWidget(self.submit_button)
