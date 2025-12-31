@@ -1,13 +1,10 @@
-# MassAdd, updated for Qt6 (Anki version 25.02)
+# MassAdd
 
-An Anki add on for mass-adding cards from a block of text. Primarily intended for use as part
-of 'sentence mining' when learning a foreign language.
-
-### Installation
- - Simply copy this folder to your addons21 directory or install using ankiweb
+An Anki add on for mass-adding cards from a block of text.
 
 ### Usage
- - Open the MassAdd window from the tools menu
+ - Open the MassAdd window from the tools menu or shortcut in the menubar
+   - The shortcuts can be toggled in the config; if you don't use the addon as much as me, you can turn them off.
  - Choose the card type and deck you would like the new cards to be added as. Please
    note that due to anki requiring the first field of a card be non-blank the first
    field of the selected card type will be used to add the text.
