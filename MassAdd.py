@@ -1,15 +1,31 @@
+# -*- coding: utf-8 -*-
+#
+# MassAdd - Quickly add multiple notes at once
+# Updated for Anki 25.02.5
+#
+
 from aqt import mw, deckchooser, notetypechooser
 from anki.models import NotetypeId
 from anki.notes import Note
 from aqt.utils import showInfo
-from aqt.qt import *  # Qt6 compatibility
-from PyQt6.QtCore import Qt  # Import Qt from QtCore
+from aqt.qt import QDialog, QVBoxLayout, QHBoxLayout, QWidget, QTextEdit, QPushButton, QLabel, QLineEdit, QAction
+from aqt.browser import Browser
+from aqt.gui_hooks import browser_will_show
+from PyQt6.QtCore import Qt
+
+
+def gc(key, default=None):
+    """Get config value"""
+    conf = mw.addonManager.getConfig(__name__)
+    if conf is None:
+        return default
+    return conf.get(key, default)
 
 
 class MassAddWindow(QDialog):
     def __init__(self) -> None:
         super().__init__(None)
-        self.setWindowFlags(Qt.WindowType.Window)  # Correct flag for PyQt6
+        self.setWindowFlags(Qt.WindowType.Window)
 
         self.deck_widget = None
         self.model_widget = None
@@ -78,6 +94,10 @@ class MassAddWindow(QDialog):
         text = self.text_edit.toPlainText()
         split_marker = self.processor_text.text()
 
+        if not split_marker:
+            showInfo("Please enter a character to split on.")
+            return
+
         new_text = (split_marker + "\n").join(text.split(split_marker))
         self.text_edit.setText(new_text)
         self.processor_text.clear()
@@ -90,19 +110,51 @@ class MassAddWindow(QDialog):
         field = m["flds"][0]["name"]
 
         sentences = self.text_edit.toPlainText().split("\n")
+        
+        # Filter out empty lines
+        sentences = [s.strip() for s in sentences if s.strip()]
 
+        if not sentences:
+            showInfo("No content to add.")
+            return
+
+        # Add notes
+        count = 0
         for s in sentences:
             note = Note(mw.col, m)
-            note[field] = s.strip()
+            note[field] = s
             note.note_type()["did"] = deck_id
-
             mw.col.addNote(note)
+            count += 1
 
-        showInfo("Done")
+        showInfo(f"Added {count} note(s).")
+        self.text_edit.setText("")
 
 
+# Create global instance
 MAWindow = MassAddWindow()
 
-action = QAction("MassAdd", mw)
-action.triggered.connect(MAWindow.show_window)
-mw.form.menuTools.addAction(action)
+
+def add_massadd_action_to_browser(browser: Browser):
+    """Add MassAdd action to browser menubar"""
+    if not gc("show_in_browser", True):
+        return
+    
+    action = QAction("🗒 MassAdd", browser)
+    browser.form.menubar.addAction(action)
+    action.triggered.connect(MAWindow.show_window)
+
+
+def add_massadd_action_to_main():
+    """Add MassAdd action to main window menubar"""
+    if not gc("show_in_main_window", True):
+        return
+    
+    action = QAction("🗒 MassAdd", mw)
+    mw.form.menubar.addAction(action)
+    action.triggered.connect(MAWindow.show_window)
+
+
+# Initialize addon
+add_massadd_action_to_main()
+browser_will_show.append(add_massadd_action_to_browser)
