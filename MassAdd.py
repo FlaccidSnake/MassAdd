@@ -38,6 +38,7 @@ class MassAddWindow(QDialog):
         self.submit_button = None
         self.deck_chooser = None
         self.model_chooser = None
+        self.notetype_chooser = None  # Alias for compatibility
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -47,6 +48,8 @@ class MassAddWindow(QDialog):
         self.submit_button = QPushButton(self)
 
         self.deck_chooser = deckchooser.DeckChooser(mw, self.deck_widget)
+        # Add reference back to this window for Quick Access compatibility
+        self.deck_chooser.addcards = self
 
         defaults = mw.col.defaults_for_adding(current_review_card=mw.reviewer.card)
         self.model_chooser = notetypechooser.NotetypeChooser(
@@ -54,6 +57,10 @@ class MassAddWindow(QDialog):
             widget=self.model_widget,
             starting_notetype_id=NotetypeId(defaults.notetype_id),
         )
+        # Add reference back to this window for Quick Access compatibility
+        self.model_chooser.addcards = self
+        # Create alias for compatibility with Quick Access addon
+        self.notetype_chooser = self.model_chooser
 
         self.processor_widget = QWidget(self)
         self.processor_layout = QHBoxLayout()
