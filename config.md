@@ -12,6 +12,11 @@
 - **Default**: true
 - **Description**: Show the "🗒 MassAdd" menu item in the browser window.
 
+### close_after_add
+- **Type**: Boolean (true/false)
+- **Default**: false
+- **Description**: Automatically close the MassAdd window after successfully adding cards.
+
 ## How to Use
 
 1. Set either option to `false` to hide that menu entry
