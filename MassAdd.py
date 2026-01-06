@@ -156,7 +156,7 @@ class MassAddWindow(QDialog):
         self.text_edit.setText(new_text)
         self.processor_text.clear()
 
-    def add_current_sentences(self):
+def add_current_sentences(self):
         deck_id = self.deck_chooser.selectedId()
         model_id = self.model_chooser.selected_notetype_id
         
@@ -211,7 +211,12 @@ class MassAddWindow(QDialog):
         mw.reset()
         
         showInfo(f"Added {count} note(s).")
-        self.text_edit.setText("")
+        
+        # CHECK CONFIG AND CLOSE OR CLEAR
+        if gc("close_after_add", False):
+            self.close()
+        else:
+            self.text_edit.setText("")
 
 
 # Create global instance
@@ -241,3 +246,4 @@ def add_massadd_action_to_main():
 # Initialize addon
 add_massadd_action_to_main()
 browser_will_show.append(add_massadd_action_to_browser)
+
