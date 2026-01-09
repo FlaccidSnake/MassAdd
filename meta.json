@@ -6,5 +6,6 @@
     "disabled": false,
     "conflicts": [],
     "update_enabled": false,
-    "max_point_version": 0
-}
+    "max_point_version": 0,
+    "config": {"show_in_main_window": true, "show_in_browser": true, "show_added_notes": true, "close_after_adding": true, "close_after_add": true}
+} 

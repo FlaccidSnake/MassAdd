@@ -6,12 +6,13 @@
 
 from aqt import mw, deckchooser, notetypechooser
 from anki.models import NotetypeId
-from anki.notes import Note
+from anki.notes import Note, NoteId
 from aqt.utils import showInfo
 from aqt.qt import QDialog, QVBoxLayout, QHBoxLayout, QWidget, QTextEdit, QPushButton, QLabel, QLineEdit, QAction
 from aqt.browser import Browser
 from aqt.gui_hooks import browser_will_show
 from PyQt6.QtCore import Qt
+from typing import List
 
 
 def gc(key, default=None):
@@ -106,11 +107,11 @@ class MassAddWindow(QDialog):
 
         self.processor_widget = QWidget(self)
         self.processor_layout = QHBoxLayout()
-        self.processor_label = QLabel("Insert line breaks after:")
+        self.processor_label = QLabel("Character to split on:")
         self.processor_text = QLineEdit(self)
         self.processor_text.setMaxLength(1)
         self.processor_text.setFixedWidth(60)
-        self.processor_button = QPushButton("Split now", self)
+        self.processor_button = QPushButton("Split", self)
 
         self.processor_button.clicked.connect(self.split_text)
 
@@ -120,7 +121,8 @@ class MassAddWindow(QDialog):
         self.processor_widget.setLayout(self.processor_layout)
 
         # Add informational label
-        info_label = QLabel("<b>New notes are divided by line breaks; use tabs to separate fields within each note.")
+        info_label = QLabel("<b>New notes are divided by line breaks</b><br>"
+                           "Use tabs to separate fields within a note")
         info_label.setWordWrap(True)
 
         self.submit_button.setText("Add")
@@ -149,7 +151,7 @@ class MassAddWindow(QDialog):
         split_marker = self.processor_text.text()
 
         if not split_marker:
-            showInfo("Insert line breaks after:")
+            showInfo("Please enter a character to split on.")
             return
 
         new_text = (split_marker + "\n").join(text.split(split_marker))
@@ -186,6 +188,7 @@ class MassAddWindow(QDialog):
         # Add notes with progress indicator
         mw.progress.start(label="Adding notes...", max=len(lines))
         count = 0
+        added_note_ids: List[NoteId] = []
         
         for idx, line in enumerate(lines):
             # Split the line into values based on tabs
@@ -204,6 +207,7 @@ class MassAddWindow(QDialog):
             
             note.note_type()["did"] = deck_id
             mw.col.addNote(note)
+            added_note_ids.append(note.id)
             count += 1
             mw.progress.update(value=idx + 1)
 
@@ -211,12 +215,22 @@ class MassAddWindow(QDialog):
         mw.reset()
         
         showInfo(f"Added {count} note(s).")
+        self.text_edit.setText("")
         
-        # CHECK CONFIG AND CLOSE OR CLEAR
-        if gc("close_after_add", False):
+        # Show added notes in browser if enabled
+        if gc("show_added_notes", False) and added_note_ids:
+            self.show_notes_in_browser(added_note_ids)
+        
+        # Close window if enabled
+        if gc("close_after_adding", False):
             self.close()
-        else:
-            self.text_edit.setText("")
+    
+    def show_notes_in_browser(self, note_ids: List[NoteId]):
+        """Open browser and show the added notes"""
+        from aqt import dialogs
+        browser: Browser = dialogs.open("Browser", mw)
+        browser.search_for(f"nid:{','.join(str(nid) for nid in note_ids)}")
+        browser.activateWindow()
 
 
 # Create global instance
@@ -246,3 +260,8 @@ def add_massadd_action_to_main():
 # Initialize addon
 add_massadd_action_to_main()
 browser_will_show.append(add_massadd_action_to_browser)
+
+
+# Add config dialog to Anki's add-ons menu
+from . import config_dialog
+mw.addonManager.setConfigAction(__name__, config_dialog.show_config_dialog)

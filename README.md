@@ -16,6 +16,11 @@ An Anki add on for mass-adding cards from a block of text.
 
 ### Updates
 
+* **2026-01-09**
+    * Added config UI.
+    * Added `show_added_notes` configuration option.
+    * Users can now have the group of mass-added notes displayed in the browser after adding them.
+
 * **2026-01-06**
     * Added `close_after_add` configuration option.
     * Users can now choose to have the window automatically close after adding cards (default is false).

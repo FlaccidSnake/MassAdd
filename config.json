@@ -1,5 +1,6 @@
 {
     "show_in_main_window": true,
     "show_in_browser": true,
-    "close_after_add": false
+    "show_added_notes": false,
+    "close_after_adding": false
 }
