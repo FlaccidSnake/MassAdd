@@ -212,7 +212,9 @@ class MassAddWindow(QDialog):
             mw.progress.update(value=idx + 1)
 
         mw.progress.finish()
-        mw.reset()
+        
+        # Update the collection without full reset to avoid addon conflicts
+        mw.col.reset()
         
         showInfo(f"Added {count} note(s).")
         self.text_edit.setText("")
