@@ -2,5 +2,7 @@
     "show_in_main_window": true,
     "show_in_browser": true,
     "show_added_notes": false,
-    "close_after_adding": false
+    "close_after_adding": false,
+    "recent_tags_limit": 10,
+    "recent_tags_search_depth": 100
 }

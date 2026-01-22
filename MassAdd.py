@@ -11,6 +11,7 @@ from aqt.utils import showInfo
 from aqt.qt import QDialog, QVBoxLayout, QHBoxLayout, QWidget, QTextEdit, QPushButton, QLabel, QLineEdit, QAction
 from aqt.browser import Browser
 from aqt.gui_hooks import browser_will_show
+from aqt.tagedit import TagEdit
 from PyQt6.QtCore import Qt
 from typing import List
 
@@ -27,22 +28,51 @@ class MockEditor:
     """Mock editor to satisfy Quick Access addon requirements"""
     def __init__(self, parent):
         self.parent = parent
+        self.parentWindow = parent  # For tag addons
         self.mw = mw
-        self.note = None
+        self._note = None
         self.addMode = True
-        self.web = MockWeb(parent)  # Mock web object for focus operations
+        self.web = MockWeb(parent)
+        self.currentField = 0  # For tag addons
+    
+    @property
+    def note(self):
+        """Create a temporary note for tag editing"""
+        if self._note is None and hasattr(self.parent, 'model_chooser'):
+            model_id = self.parent.model_chooser.selected_notetype_id
+            if model_id:
+                m = mw.col.models.get(model_id)
+                if m:
+                    self._note = Note(mw.col, m)
+                    # Set tags from the tag field if available
+                    if hasattr(self.parent, 'tags_edit'):
+                        tag_string = self.parent.tags_edit.text().strip()
+                        if tag_string:
+                            self._note.tags = mw.col.tags.split(tag_string)
+        return self._note
+    
+    @note.setter
+    def note(self, value):
+        """Allow setting the note"""
+        self._note = value
     
     def call_after_note_saved(self, callback):
         """Execute callback immediately since we don't have a real note to save"""
         callback()
     
     def loadNote(self, focusTo=None):
-        """Mock method - does nothing in MassAdd"""
-        pass
+        """Update tag field from the note"""
+        if self._note and hasattr(self.parent, 'tags_edit'):
+            tag_string = mw.col.tags.join(self._note.tags)
+            self.parent.tags_edit.setText(tag_string)
     
     def _save_current_note(self):
         """Mock method - does nothing in MassAdd"""
         pass
+    
+    def saveNow(self, callback):
+        """Mock saveNow for tag addons - execute callback immediately"""
+        callback()
 
 
 class MockWeb:
@@ -79,6 +109,7 @@ class MassAddWindow(QDialog):
         self.notetype_chooser = None  # Alias for compatibility
         self.editor = None  # Will be initialized in setup_ui
         self.mw = mw  # Reference to main window
+        self.tags_edit = None  # Tag field
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -120,6 +151,29 @@ class MassAddWindow(QDialog):
         self.processor_layout.addWidget(self.processor_button)
         self.processor_widget.setLayout(self.processor_layout)
 
+        # Add tags field
+        tags_widget = QWidget(self)
+        tags_layout = QHBoxLayout()
+        tags_label = QLabel("Tags:")
+        tags_label.setFixedWidth(45)  # Reduced from 80 to give more space to the field
+        self.tags_edit = TagEdit(self)
+        self.tags_edit.setCol(mw.col)
+        # Make tag edit accessible to editor for addons
+        self.tags_edit.editor = self.editor
+        # Set placeholder text to help users
+        self.tags_edit.setPlaceholderText("Enter tags separated by spaces...")
+        
+        # Add recent tags button
+        recent_tags_btn = QPushButton("Recent")
+        recent_tags_btn.setMinimumWidth(90)
+        recent_tags_btn.clicked.connect(self.show_recent_tags)
+        recent_tags_btn.setToolTip("Add recently used tags")
+        
+        tags_layout.addWidget(tags_label)
+        tags_layout.addWidget(self.tags_edit)
+        tags_layout.addWidget(recent_tags_btn)
+        tags_widget.setLayout(tags_layout)
+
         # Add informational label
         info_label = QLabel("<b>New notes are divided by line breaks</b><br>"
                            "Use tabs to separate fields within a note")
@@ -130,6 +184,7 @@ class MassAddWindow(QDialog):
 
         layout.addWidget(self.model_widget)
         layout.addWidget(self.deck_widget)
+        layout.addWidget(tags_widget)
         layout.addWidget(info_label)
         layout.addWidget(self.processor_widget)
         layout.addWidget(self.text_edit)
@@ -144,6 +199,7 @@ class MassAddWindow(QDialog):
         if self.submit_button is None:
             self.setup_ui()
         self.text_edit.setText("")
+        # Don't clear tags - keep them for multiple additions
         self.show()
 
     def split_text(self):
@@ -157,6 +213,33 @@ class MassAddWindow(QDialog):
         new_text = (split_marker + "\n").join(text.split(split_marker))
         self.text_edit.setText(new_text)
         self.processor_text.clear()
+    
+    def show_recent_tags(self):
+        """Show recent tags dialog"""
+        from . import recent_tags_dialog
+        
+        recent_tags = recent_tags_dialog.get_recent_tags()
+        if not recent_tags:
+            from aqt.utils import tooltip
+            tooltip("No recent tags found")
+            return
+        
+        dialog = recent_tags_dialog.RecentTagsDialog(self, recent_tags)
+        if dialog.exec():
+            selected_tags = dialog.selected_tags
+            if selected_tags:
+                # Add selected tags to existing tags
+                current_tags = self.tags_edit.text().strip()
+                if current_tags:
+                    # Parse existing tags and add new ones
+                    existing = set(mw.col.tags.split(current_tags))
+                    existing.update(selected_tags)
+                    new_tags = mw.col.tags.join(sorted(existing))
+                else:
+                    new_tags = mw.col.tags.join(selected_tags)
+                self.tags_edit.setText(new_tags)
+                from aqt.utils import tooltip
+                tooltip(f"Added {len(selected_tags)} tag(s)")
 
     def add_current_sentences(self):
         deck_id = self.deck_chooser.selectedId()
@@ -174,6 +257,10 @@ class MassAddWindow(QDialog):
 
         # Get the list of field names for the selected note type
         field_names = [fld["name"] for fld in m["flds"]]
+        
+        # Get tags from the tag field
+        tag_string = self.tags_edit.text().strip()
+        tags = mw.col.tags.split(tag_string) if tag_string else []
 
         # Split the input text into lines (each line is a note)
         lines = self.text_edit.toPlainText().split("\n")
@@ -204,6 +291,9 @@ class MassAddWindow(QDialog):
                 else:
                     # If there are more fields than values, assign an empty string
                     note[field_name] = ""
+            
+            # Add tags to the note
+            note.tags = tags.copy()
             
             note.note_type()["did"] = deck_id
             mw.col.addNote(note)

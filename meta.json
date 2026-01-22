@@ -1,11 +1,1 @@
-{
-    "name": "MassAdd - Create multiple cards from raw text",
-    "mod": 1629120417,
-    "min_point_version": 0,
-    "branch_index": 0,
-    "disabled": false,
-    "conflicts": [],
-    "update_enabled": false,
-    "max_point_version": 0,
-    "config": {"show_in_main_window": true, "show_in_browser": true, "show_added_notes": true, "close_after_adding": true, "close_after_add": true}
-} 
+{"name": "MassAdd - Create multiple cards from raw text", "mod": 1629120417, "min_point_version": 0, "branch_index": 0, "disabled": false, "conflicts": [], "update_enabled": false, "max_point_version": 0, "config": {"show_in_main_window": false, "show_in_browser": true, "show_added_notes": true, "close_after_adding": true, "close_after_add": true}}
