@@ -16,6 +16,10 @@ An Anki add on for mass-adding cards from a block of text.
 
 ### Updates
 
+* **2026-01-22**
+    * Added tag field to MassAdd window.
+    * Implemented code from Recent Tags addon to make tagging easier.
+
 * **2026-01-09**
     * Added config UI.
     * Added `show_added_notes` configuration option.
