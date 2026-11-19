@@ -1,7 +1,9 @@
 {
+    "name": "Mass Add",
     "package": "mass_add",
-    "name": "MassAdd - Create multiple cards from raw text",
-    "conflicts": [],
-    "mod": 0,
-    "homepage": ""
+    "author": "FlaccidSnake",
+    "homepage": "https://github.com/FlaccidSnake/MassAdd/issues",
+    "version": "2.2.0",
+    "description": "Tool for creating multiple cards from raw text. Each line of the text will be converted into a card.",
+    "min_point_version": 45
 }

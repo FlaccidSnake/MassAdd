@@ -1,19 +1,43 @@
 # -*- coding: utf-8 -*-
 #
 # MassAdd - Quickly add multiple notes at once
-# Updated for Anki 25.02.5
+# Updated for Anki 25.02.5 and 2.1.49+ compatibility
 #
+
+import html
+from typing import List
 
 from aqt import mw, deckchooser, notetypechooser
 from anki.models import NotetypeId
 from anki.notes import Note, NoteId
 from aqt.utils import showInfo
-from aqt.qt import QDialog, QVBoxLayout, QHBoxLayout, QWidget, QTextEdit, QPushButton, QLabel, QLineEdit, QAction
 from aqt.browser import Browser
 from aqt.gui_hooks import browser_will_show
 from aqt.tagedit import TagEdit
-from PyQt6.QtCore import Qt
-from typing import List
+
+# Qt5/Qt6 compatibility
+try:
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import (
+        QDialog, QVBoxLayout, QHBoxLayout, QWidget, QTextEdit,
+        QPushButton, QLabel, QLineEdit
+    )
+    from PyQt6.QtGui import QAction
+    qtmajor = 6
+except ImportError:
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtWidgets import (
+        QDialog, QVBoxLayout, QHBoxLayout, QWidget, QTextEdit,
+        QPushButton, QLabel, QLineEdit, QAction
+    )
+    qtmajor = 5
+
+from . import config_dialog
+from .config_dialog import (
+    DEFAULT_NOTE_DELIMITER,
+    DEFAULT_FIELD_DELIMITER,
+    parse_delimiter,
+)
 
 
 def gc(key, default=None):
@@ -22,6 +46,25 @@ def gc(key, default=None):
     if conf is None:
         return default
     return conf.get(key, default)
+
+
+def get_note_delimiter():
+    """The text that separates one note from the next (default: line break)."""
+    return parse_delimiter(gc("note_delimiter", ""), DEFAULT_NOTE_DELIMITER)
+
+
+def get_field_delimiter():
+    """The text that separates fields within a note (default: tab)."""
+    return parse_delimiter(gc("field_delimiter", ""), DEFAULT_FIELD_DELIMITER)
+
+
+def describe_delimiter(delim):
+    """Human-readable (HTML-safe) description of a delimiter."""
+    if delim == "\n":
+        return "line breaks"
+    if delim == "\t":
+        return "tabs"
+    return '"{}"'.format(html.escape(delim))
 
 
 class MockEditor:
@@ -34,7 +77,7 @@ class MockEditor:
         self.addMode = True
         self.web = MockWeb(parent)
         self.currentField = 0  # For tag addons
-    
+
     @property
     def note(self):
         """Create a temporary note for tag editing"""
@@ -50,26 +93,26 @@ class MockEditor:
                         if tag_string:
                             self._note.tags = mw.col.tags.split(tag_string)
         return self._note
-    
+
     @note.setter
     def note(self, value):
         """Allow setting the note"""
         self._note = value
-    
+
     def call_after_note_saved(self, callback):
         """Execute callback immediately since we don't have a real note to save"""
         callback()
-    
+
     def loadNote(self, focusTo=None):
         """Update tag field from the note"""
         if self._note and hasattr(self.parent, 'tags_edit'):
             tag_string = mw.col.tags.join(self._note.tags)
             self.parent.tags_edit.setText(tag_string)
-    
+
     def _save_current_note(self):
         """Mock method - does nothing in MassAdd"""
         pass
-    
+
     def saveNow(self, callback):
         """Mock saveNow for tag addons - execute callback immediately"""
         callback()
@@ -79,12 +122,12 @@ class MockWeb:
     """Mock web object for editor"""
     def __init__(self, parent):
         self.parent = parent
-    
+
     def setFocus(self):
         """Set focus to the text edit area"""
         if hasattr(self.parent, 'text_edit') and self.parent.text_edit:
             self.parent.text_edit.setFocus()
-    
+
     def eval(self, js_code):
         """Mock eval method - does nothing"""
         pass
@@ -93,7 +136,10 @@ class MockWeb:
 class MassAddWindow(QDialog):
     def __init__(self) -> None:
         super().__init__(None)
-        self.setWindowFlags(Qt.WindowType.Window)
+        if qtmajor == 6:
+            self.setWindowFlags(Qt.WindowType.Window)
+        else:
+            self.setWindowFlags(Qt.Window)
 
         self.deck_widget = None
         self.model_widget = None
@@ -110,6 +156,7 @@ class MassAddWindow(QDialog):
         self.editor = None  # Will be initialized in setup_ui
         self.mw = mw  # Reference to main window
         self.tags_edit = None  # Tag field
+        self.info_label = None  # Shows the current delimiters
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -142,7 +189,7 @@ class MassAddWindow(QDialog):
         self.processor_text = QLineEdit(self)
         self.processor_text.setMaxLength(1)
         self.processor_text.setFixedWidth(60)
-        self.processor_button = QPushButton("Split", self)
+        self.processor_button = QPushButton("Split now", self)
 
         self.processor_button.clicked.connect(self.split_text)
 
@@ -155,29 +202,29 @@ class MassAddWindow(QDialog):
         tags_widget = QWidget(self)
         tags_layout = QHBoxLayout()
         tags_label = QLabel("Tags:")
-        tags_label.setFixedWidth(45)  # Reduced from 80 to give more space to the field
+        tags_label.setFixedWidth(45)
         self.tags_edit = TagEdit(self)
         self.tags_edit.setCol(mw.col)
         # Make tag edit accessible to editor for addons
         self.tags_edit.editor = self.editor
-        # Set placeholder text to help users
         self.tags_edit.setPlaceholderText("Enter tags separated by spaces...")
-        
+
         # Add recent tags button
         recent_tags_btn = QPushButton("Recent")
         recent_tags_btn.setMinimumWidth(90)
         recent_tags_btn.clicked.connect(self.show_recent_tags)
         recent_tags_btn.setToolTip("Add recently used tags")
-        
+
         tags_layout.addWidget(tags_label)
         tags_layout.addWidget(self.tags_edit)
         tags_layout.addWidget(recent_tags_btn)
         tags_widget.setLayout(tags_layout)
 
-        # Add informational label
-        info_label = QLabel("<b>New notes are divided by line breaks</b><br>"
-                           "Use tabs to separate fields within a note")
-        info_label.setWordWrap(True)
+        # Informational label showing the current delimiters + link to settings
+        self.info_label = QLabel()
+        self.info_label.setWordWrap(True)
+        self.info_label.linkActivated.connect(self.open_delimiter_settings)
+        self.update_info_label()
 
         self.submit_button.setText("Add")
         self.submit_button.clicked.connect(self.add_current_sentences)
@@ -185,7 +232,7 @@ class MassAddWindow(QDialog):
         layout.addWidget(self.model_widget)
         layout.addWidget(self.deck_widget)
         layout.addWidget(tags_widget)
-        layout.addWidget(info_label)
+        layout.addWidget(self.info_label)
         layout.addWidget(self.processor_widget)
         layout.addWidget(self.text_edit)
         layout.addWidget(self.submit_button)
@@ -195,10 +242,30 @@ class MassAddWindow(QDialog):
         self.setMinimumHeight(300)
         self.setMinimumWidth(400)
 
+    def update_info_label(self):
+        """Refresh the label that tells the user which delimiters are active."""
+        if self.info_label is None:
+            return
+        self.info_label.setText(
+            "<b>New notes are divided by {}</b><br>"
+            "Fields within a note are separated by {} "
+            "&nbsp;<a href=\"#delimiters\">Change</a>".format(
+                describe_delimiter(get_note_delimiter()),
+                describe_delimiter(get_field_delimiter()),
+            )
+        )
+
+    def open_delimiter_settings(self, _link=None):
+        """Open the config dialog, then refresh the label with any new settings."""
+        config_dialog.show_config_dialog(self)
+        self.update_info_label()
+
     def show_window(self):
         if self.submit_button is None:
             self.setup_ui()
         self.text_edit.setText("")
+        # Config may have been changed via Anki's add-on manager since last time
+        self.update_info_label()
         # Don't clear tags - keep them for multiple additions
         self.show()
 
@@ -210,20 +277,21 @@ class MassAddWindow(QDialog):
             showInfo("Please enter a character to split on.")
             return
 
-        new_text = (split_marker + "\n").join(text.split(split_marker))
+        # Insert the note delimiter after each marker
+        new_text = (split_marker + get_note_delimiter()).join(text.split(split_marker))
         self.text_edit.setText(new_text)
         self.processor_text.clear()
-    
+
     def show_recent_tags(self):
         """Show recent tags dialog"""
         from . import recent_tags_dialog
-        
+
         recent_tags = recent_tags_dialog.get_recent_tags()
         if not recent_tags:
             from aqt.utils import tooltip
             tooltip("No recent tags found")
             return
-        
+
         dialog = recent_tags_dialog.RecentTagsDialog(self, recent_tags)
         if dialog.exec():
             selected_tags = dialog.selected_tags
@@ -244,29 +312,33 @@ class MassAddWindow(QDialog):
     def add_current_sentences(self):
         deck_id = self.deck_chooser.selectedId()
         model_id = self.model_chooser.selected_notetype_id
-        
+
         if not model_id:
             showInfo("Please select a note type.")
             return
-        
+
         m = mw.col.models.get(model_id)
-        
+
         if not m or not m["flds"]:
             showInfo("Selected note type has no fields.")
             return
 
         # Get the list of field names for the selected note type
         field_names = [fld["name"] for fld in m["flds"]]
-        
+
         # Get tags from the tag field
         tag_string = self.tags_edit.text().strip()
         tags = mw.col.tags.split(tag_string) if tag_string else []
 
-        # Split the input text into lines (each line is a note)
-        lines = self.text_edit.toPlainText().split("\n")
-        
-        # Filter out empty lines
-        lines = [line.strip() for line in lines if line.strip()]
+        # Delimiters (from config, with defaults)
+        note_delim = get_note_delimiter()
+        field_delim = get_field_delimiter()
+
+        # Split the input text into notes
+        chunks = self.text_edit.toPlainText().split(note_delim)
+
+        # Filter out empty entries
+        lines = [chunk.strip() for chunk in chunks if chunk.strip()]
 
         if not lines:
             showInfo("No content to add.")
@@ -276,25 +348,24 @@ class MassAddWindow(QDialog):
         mw.progress.start(label="Adding notes...", max=len(lines))
         count = 0
         added_note_ids: List[NoteId] = []
-        
+
         for idx, line in enumerate(lines):
-            # Split the line into values based on tabs
-            values = line.split("\t")
-            
+            # Split the note into field values
+            values = line.split(field_delim)
+
             note = Note(mw.col, m)
-            
+
             # Assign values to fields
             for i, field_name in enumerate(field_names):
                 if i < len(values):
-                    # Assign the corresponding value to the field
                     note[field_name] = values[i].strip()
                 else:
-                    # If there are more fields than values, assign an empty string
+                    # More fields than values: leave the rest empty
                     note[field_name] = ""
-            
+
             # Add tags to the note
             note.tags = tags.copy()
-            
+
             note.note_type()["did"] = deck_id
             mw.col.addNote(note)
             added_note_ids.append(note.id)
@@ -302,21 +373,21 @@ class MassAddWindow(QDialog):
             mw.progress.update(value=idx + 1)
 
         mw.progress.finish()
-        
+
         # Update the collection without full reset to avoid addon conflicts
         mw.col.reset()
-        
+
         showInfo(f"Added {count} note(s).")
         self.text_edit.setText("")
-        
+
         # Show added notes in browser if enabled
         if gc("show_added_notes", False) and added_note_ids:
             self.show_notes_in_browser(added_note_ids)
-        
+
         # Close window if enabled
         if gc("close_after_adding", False):
             self.close()
-    
+
     def show_notes_in_browser(self, note_ids: List[NoteId]):
         """Open browser and show the added notes"""
         from aqt import dialogs
@@ -333,7 +404,7 @@ def add_massadd_action_to_browser(browser: Browser):
     """Add MassAdd action to browser menubar"""
     if not gc("show_in_browser", True):
         return
-    
+
     action = QAction("🗒 MassAdd", browser)
     browser.form.menubar.addAction(action)
     action.triggered.connect(MAWindow.show_window)
@@ -343,7 +414,7 @@ def add_massadd_action_to_main():
     """Add MassAdd action to main window menubar"""
     if not gc("show_in_main_window", True):
         return
-    
+
     action = QAction("🗒 MassAdd", mw)
     mw.form.menubar.addAction(action)
     action.triggered.connect(MAWindow.show_window)
@@ -353,7 +424,5 @@ def add_massadd_action_to_main():
 add_massadd_action_to_main()
 browser_will_show.append(add_massadd_action_to_browser)
 
-
 # Add config dialog to Anki's add-ons menu
-from . import config_dialog
 mw.addonManager.setConfigAction(__name__, config_dialog.show_config_dialog)

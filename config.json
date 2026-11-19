@@ -1,4 +1,6 @@
 {
+    "note_delimiter": "",
+    "field_delimiter": "",
     "show_in_main_window": true,
     "show_in_browser": true,
     "show_added_notes": false,

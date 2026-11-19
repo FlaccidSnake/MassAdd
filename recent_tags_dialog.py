@@ -3,17 +3,24 @@
 Recent Tags Dialog for MassAdd with Modify functionality
 """
 from aqt import mw
-from aqt.qt import (
-    QDialog,
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
-    QDialogButtonBox,
-    QLabel,
-)
 from aqt.tagedit import TagEdit
 from aqt.utils import tooltip
-from PyQt6.QtCore import Qt
+
+# Qt5/Qt6 compatibility
+try:
+    from PyQt6.QtWidgets import (
+        QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+        QDialogButtonBox, QLabel
+    )
+    from PyQt6.QtCore import Qt, QEvent
+    qtmajor = 6
+except ImportError:
+    from PyQt5.QtWidgets import (
+        QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
+        QDialogButtonBox, QLabel
+    )
+    from PyQt5.QtCore import Qt, QEvent
+    qtmajor = 5
 
 
 class TagButton(QHBoxLayout):
@@ -110,7 +117,10 @@ class RecentTagsDialog(QDialog):
     """Dialog for selecting and modifying recent tags."""
     
     def __init__(self, parent, recent_tags):
-        super().__init__(parent, Qt.WindowType.Window)
+        if qtmajor == 6:
+            super().__init__(parent, Qt.WindowType.Window)
+        else:
+            super().__init__(parent, Qt.Window)
         self.setWindowTitle("Add Recent Tags")
         self.setMinimumWidth(450)
         self.setMinimumHeight(400)
@@ -135,9 +145,14 @@ class RecentTagsDialog(QDialog):
         main_layout.addStretch()
         
         # Button box
-        self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        if qtmajor == 6:
+            self.button_box = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+            )
+        else:
+            self.button_box = QDialogButtonBox(
+                QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+            )
         self.button_box.accepted.connect(self.on_accept)
         self.button_box.rejected.connect(self.on_reject)
         main_layout.addWidget(self.button_box)
@@ -147,10 +162,17 @@ class RecentTagsDialog(QDialog):
     
     def eventFilter(self, obj, event):
         """Handle clicks outside of line edits to close them."""
-        if event.type() == event.Type.MouseButtonPress:
+        if qtmajor == 6:
+            event_type = event.type()
+            mouse_press = QEvent.Type.MouseButtonPress
+        else:
+            event_type = event.type()
+            mouse_press = QEvent.MouseButtonPress
+            
+        if event_type == mouse_press:
             for tag_btn in self.tag_buttons:
                 if tag_btn.is_editing:
-                    # Get global position (Qt6 compatibility)
+                    # Get global position (Qt5/Qt6 compatibility)
                     try:
                         global_pos = event.globalPosition().toPoint()
                     except AttributeError:
